@@ -1,11 +1,19 @@
 #include "state_func.h"
 #include "DJmotor.h"
 #include "Solenoid.h"
+/* 软件复位命令的扩展帧 ID */
+#define RESET_CAN_ID 0x010304FFU
 STATEMODE state_mode =
-    {
-        .cur_mode = DISABLED,
-        .set_mode = DISABLED,
+{
+    .cur_mode        = DISABLED,
+    .set_mode        = DISABLED,
+    .enter_time_ms   = 0U,
+    .timeout_ms      = 0U,
+    .fault_active    = false,
+    .last_error      = TIMEOUT_NONE,
+    .last_error_mode = DISABLED
 };
+
 float L2D(float lenth) // 将运动的距离转化成要转角度
 {
     return (lenth);
@@ -20,6 +28,10 @@ void claw_off() // 闭合夹爪
 {
     solenoid_on(3, 0x00);
 }
+
+//软件复位请求标志
+volatile bool ResetFlag = false;
+
 bool DoneSignal = false;                  // 判断是否完成指定模式的标志
 bool isDone(float feedback, float target) // 判断电机是否运动到指定位置附近（防抖）
 {
@@ -28,6 +40,7 @@ bool isDone(float feedback, float target) // 判断电机是否运动到指定�
     return false;
 }
 
+//---------------------------------------------------------状态机------------------------------------------------//
 void state_func(STATEMODE statemode) // 负责设定PID的目标值
 {
     switch (statemode.cur_mode)
@@ -141,18 +154,56 @@ void state_func(STATEMODE statemode) // 负责设定PID的目标值
     }
 }
 
-void state_receive(CAN_RxHeaderTypeDef Rxheader, uint8_t *Rx_data)
+//----------------------------------------------------can接受---------------------------------------------------------//
+void state_receive(CAN_RxHeaderTypeDef Rxheader,
+                   uint8_t *Rx_data)
 {
+    /*
+     * 所有机构控制命令都必须满足：
+     * 1. 扩展帧；
+     * 2. 数据帧；
+     * 3. 数据长度为 2。
+     */
     if ((Rxheader.IDE != CAN_ID_EXT) ||
-    (Rxheader.RTR != CAN_RTR_DATA) ||
-    (Rxheader.ExtId < 0x01010401U) ||
-    (Rxheader.ExtId > 0x01010408U) ||
-    (Rxheader.DLC != 2U))
+        (Rxheader.RTR != CAN_RTR_DATA) ||
+        (Rxheader.DLC != 2U))
     {
         return;
     }
 
+    /*----------------------- 软件复位命令---------------------------*/
+
+    if (Rxheader.ExtId == RESET_CAN_ID)
+    {
+        /*
+         * 同时检查两个数据字节，防止错误帧触发复位。
+         */
+        if ((Rx_data[0] == 'R') && (Rx_data[1] == 'S'))
+        {
+            /*
+             * CAN 回调处于中断环境。
+             * 中断中只设置标志，不直接复位。
+             */
+            ResetFlag = true;
+        }
+        return;
+    }
+
+    //------------------------普通状态命令-------------------------//
+
+    /*
+     * 普通机构命令范围仍然是：
+     * 0x01010401～0x01010408。
+     */
+    if ((Rxheader.ExtId < 0x01010401U) ||
+        (Rxheader.ExtId > 0x0101040AU))
+    {
+        return;
+    }
+    
     uint8_t msg = (uint8_t)(Rxheader.ExtId - 0x01010400U); /* 1..8 */
+    
+    
     switch (msg)
     {
     case 1:
@@ -207,5 +258,24 @@ void state_receive(CAN_RxHeaderTypeDef Rxheader, uint8_t *Rx_data)
             state_mode.set_mode = BALL_DROP;
     }
     break;
+    case 9:
+    {
+        if ((Rx_data[0] == 'H') &&
+            (Rx_data[1] == 'B'))
+        {
+            state_mode.set_mode = BALL_LIFT;
+        }
+    }
+    break;
+    case 10:
+    {
+        if ((Rx_data[0] == 'H') &&
+            (Rx_data[1] == 'E'))
+        {
+            state_mode.set_mode = GROUND_LIFT;
+        }
+    }
+    break;
     }
 }
+

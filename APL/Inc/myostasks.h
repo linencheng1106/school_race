@@ -1,6 +1,6 @@
 #ifndef __MYOSTASKS_H
 #define __MYOSTASKS_H
-
+#include "DJmotor.h"
 #include "cmsis_os2.h"
 #include "main.h"
 #include "Led.h"

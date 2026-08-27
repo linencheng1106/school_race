@@ -315,7 +315,7 @@
           </ArmAdsMisc>
           <Cads>
             <interw>1</interw>
-            <Optim>1</Optim>
+            <Optim>4</Optim>
             <oTime>0</oTime>
             <SplitLS>0</SplitLS>
             <OneElfS>1</OneElfS>
@@ -1590,6 +1590,16 @@
               <FileName>state_func.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\APL\Src\state_func.c</FilePath>
+            </File>
+            <File>
+              <FileName>timeout_protect.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\APL\Src\timeout_protect.c</FilePath>
+            </File>
+            <File>
+              <FileName>feedback.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\APL\Src\feedback.c</FilePath>
             </File>
           </Files>
         </Group>

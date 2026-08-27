@@ -23,8 +23,8 @@ extern "C"
 
     typedef struct
     {
-        uint8_t Front;
-        uint8_t Rear;
+        volatile uint8_t Front; // 在 TIM2 中断中更新
+        volatile uint8_t Rear;  // 在任务中更新
         CAN_HandleTypeDef *Canx;
         CAN_DataStruct CAN_DataSend[CAN_QUEUESIZE];
     } CAN_SendQueueType;

@@ -5,7 +5,7 @@
 #include "stdbool.h"
 #include "math.h"
 #include "Beep.h"
-#include "myostasks.h"
+
 typedef enum
 {
     DISABLED = 0, // 失能
@@ -22,10 +22,28 @@ typedef enum
     CLAW_OFF,     // 松开夹爪
 } MODE;
 
+
+/**
+ * 状态机错误类型
+ */
+typedef enum
+{
+    TIMEOUT_NONE = 0, // 没有超时
+    TIMEOUT_ACTION    // 动作执行超时
+} TimeoutError_t;
+
+
 typedef struct
 {
-    MODE cur_mode;
-    MODE set_mode;
+    MODE cur_mode;             // 当前状态
+    volatile MODE set_mode;    // CAN 请求状态
+
+    uint32_t enter_time_ms;    // 当前状态进入时间
+    uint32_t timeout_ms;       // 当前状态超时时间
+
+    bool fault_active;         // 是否存在活动超时
+    TimeoutError_t last_error; // 最近一次超时错误
+    MODE last_error_mode;      // 最近一次超时的状态
 } STATEMODE;
 
 #define GROUND_CATCH_HEIGHT 50.0 // 夹大地块抬升高度
@@ -41,6 +59,29 @@ typedef struct
 
 void state_func(STATEMODE state_mode);
 void state_receive(CAN_RxHeaderTypeDef Rxheader, uint8_t *Rx_data);
+/**
+ * 软件复位请求标志
+ *
+ * 在 CAN 接收中断中置 true，
+ * 在 State_Run_Task 中读取并执行复位。
+ *
+ */
+extern volatile bool ResetFlag;
+
 extern bool DoneSignal;
 extern STATEMODE state_mode;
+
+
+//正式进入一个新状态
+//负责更新时间、超时时间和 DoneSignal。
+void EnterState(MODE new_mode);
+
+//检查当前动作是否执行超时
+//由 State_Run_Task 周期调用
+void CheckTimeout(void);
+
+//获取当前动作已经运行的时间
+//当前状态已运行时间，单位：ms
+uint32_t GetElapsedMs(void);
+
 #endif

@@ -88,7 +88,48 @@ void MX_CAN1_Init(void)
   if (HAL_CAN_ConfigFilter(&hcan1, &CAN_FilterConfig) != HAL_OK) { // 应用硬件中
       Error_Handler();
   }
+  /*----------------------------------- 过滤器3：复位命令 ------------------------------*/
+/*
+ * 协议中的复位命令扩展帧 ID。
+ */
+#define RESET_CAN_ID 0x010304FFU
 
+uint32_t reset_filter_id = (RESET_CAN_ID << 3) | (1U << 2);
+
+uint32_t reset_filter_mask =
+    (0x1FFFFFFFU << 3) | (1U << 2);
+
+CAN_FilterConfig.FilterActivation = ENABLE;
+
+CAN_FilterConfig.FilterBank = 2;
+
+CAN_FilterConfig.SlaveStartFilterBank = 14;
+CAN_FilterConfig.FilterScale = CAN_FILTERSCALE_32BIT;
+CAN_FilterConfig.FilterMode = CAN_FILTERMODE_IDMASK;
+
+/* 复位命令继续放入 FIFO1，由 state_receive() 处理。 */
+CAN_FilterConfig.FilterFIFOAssignment = CAN_FILTER_FIFO1;
+
+/* 写入复位 ID。 */
+CAN_FilterConfig.FilterIdHigh =
+    (uint16_t)(reset_filter_id >> 16);
+
+CAN_FilterConfig.FilterIdLow =
+    (uint16_t)(reset_filter_id & 0xFFFFU);
+
+/* 写入精确匹配掩码。 */
+CAN_FilterConfig.FilterMaskIdHigh =
+    (uint16_t)(reset_filter_mask >> 16);
+
+CAN_FilterConfig.FilterMaskIdLow =
+    (uint16_t)(reset_filter_mask & 0xFFFFU);
+
+/* 应用复位命令过滤器。 */
+if (HAL_CAN_ConfigFilter(&hcan1,
+                         &CAN_FilterConfig) != HAL_OK)
+{
+    Error_Handler();
+}
 
   /*----------------------------------- 启动CAN1 ------------------------------*/
   if (HAL_CAN_Start(&hcan1) != HAL_OK)
